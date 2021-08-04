@@ -67,7 +67,7 @@ contract Strategy is BaseStrategy {
     }
     
     function invest(uint256 _amount) external onlyEmergencyAuthorized{
-        require(want.balanceOf(address(this)) >= _amount);
+        require(wantBalance() >= _amount);
         uint256 realInvest = Math.min(maxSingleTrade, _amount);
         _invest(realInvest);
     }
@@ -84,7 +84,7 @@ contract Strategy is BaseStrategy {
     }
 
     function estimatedTotalAssets() public override view returns (uint256) {
-        return stETH.balanceOf(address(this)).add(wantBalance());
+        return stethBalance().add(wantBalance());
     }
 
     function wantBalance() public view returns (uint256){
@@ -148,7 +148,7 @@ contract Strategy is BaseStrategy {
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
 
-        uint256 toInvest = want.balanceOf(address(this));
+        uint256 toInvest = wantBalance());
         if(toInvest > 0){
             uint256 realInvest = Math.min(maxSingleTrade, toInvest);
             _invest(realInvest);
