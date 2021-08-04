@@ -8,40 +8,42 @@ def andre(accounts):
 
 @pytest.fixture
 def currency(interface):
-    #this one is curvesteth
-    yield interface.ERC20('0x06325440D014e39736583c165C2963BA99fAf14E')
+    #weth
+    yield interface.ERC20('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2')
 
 @pytest.fixture
-def ldo(interface):
-    #this one is curvesteth
-    yield interface.ERC20('0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32')
-    
+def steth(interface):
+    #weth
+    yield interface.ERC20('0xae7ab96520de3a18e5e111b5eaab095312d7fe84')
 
 @pytest.fixture
-def whale(accounts, web3, currency, chain, ldo):
+def whale(accounts, currency):
     #big binance7 wallet
     #acc = accounts.at('0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8', force=True)
 
-    ldo_acc = accounts.at('0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c', force=True)
-
-
-    #big binance8 wallet
-    acc = accounts.at('0x97960149fc611508748dE01202974d372a677632', force=True)
-
-    ldo.transfer(acc, 5000000*1e20, {'from': ldo_acc})
+    #makercdp
+    acc = accounts.at('0x2f0b23f53734252bda2277357e97e1517d6b042a', force=True)
 
     assert currency.balanceOf(acc)  > 0
     
     yield acc
 
 @pytest.fixture
-def samdev(accounts):
+def steth_holder(accounts, steth):
     #big binance7 wallet
     #acc = accounts.at('0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8', force=True)
-    #big binance8 wallet
+
+    #EthLidoPCVDeposit
+    acc = accounts.at('0xAc38Ee05C0204A1E119C625d0a560D6731478880', force=True)
+
+    assert steth.balanceOf(acc)  > 0
+    
+    yield acc
+
+@pytest.fixture
+def samdev(accounts):
+
     acc = accounts.at('0xC3D6880fD95E06C816cB030fAc45b3ffe3651Cb0', force=True)
-
-
     
     yield acc
 
@@ -54,10 +56,6 @@ def devms(accounts):
 def ychad(accounts):
     acc = accounts.at('0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52', force=True)
     yield acc
-
-@pytest.fixture
-def token(andre, Token):
-    yield andre.deploy(Token)
 
 
 @pytest.fixture
@@ -106,21 +104,20 @@ def live_strategy(Strategy):
     yield strategy
 
 @pytest.fixture
-def voter_proxy(interface):
-    yield interface.IStrategyProxy("0x9a165622a744C20E3B2CB443AeD98110a33a231b")
-    #yield  interface.IStrategyProxy("0x9a3a03C614dc467ACC3e81275468e033c98d960E")
+def healthcheck():
+    yield '0xDDCea799fF1699e98EDF118e0629A974Df7DF012'
 
 @pytest.fixture
 def live_vault(pm):
     Vault = pm(config["dependencies"][0]).Vault
-    vault = Vault.at('0xdCD90C7f6324cfa40d7169ef80b12031770B4325')
+    vault = Vault.at('0xa258C4606Ca8206D8aA700cE2143D7db854D168c')
     yield vault
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy,voter_proxy, ychad):
+def strategy(strategist, keeper, vault, Strategy,gov, healthcheck):
     strategy = strategist.deploy(Strategy, vault)
     strategy.setKeeper(keeper)
-    voter_proxy.approveStrategy(strategy.gauge(), strategy, {"from": ychad})
+    strategy.setHealthCheck(healthcheck, {'from': gov})
     yield strategy
 
 @pytest.fixture

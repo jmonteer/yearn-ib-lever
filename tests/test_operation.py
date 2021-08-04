@@ -12,176 +12,108 @@ import brownie
 #           - change in loading (from low to high and high to low)
 #           - strategy operation at different loading levels (anticipated and "extreme")
 
-def test_opsss(currency,strategy,zapper,Contract, samdev, ldo, rewards,chain,vault, whale,gov,strategist, interface):
-    rate_limit = 1_000_000_000 *1e18
+def test_profitable_harvest(currency,strategy,Contract, chain,vault, steth, whale,gov,strategist, steth_holder, interface):
+    rate_limit = 2**256 -1
     debt_ratio = 10_000
-    vault.addStrategy(strategy, debt_ratio, rate_limit, 1000, {"from": gov})
-
-    #fix 1inch broken code
-    #ss = Contract.from_explorer('0x2eeA44E40930b1984F42078E836c659A12301E40')
-    #moon = '0x1f629794B34FFb3B29FF206Be5478A52678b47ae'
-    #steth = interface.ERC20('0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84')
-    #ldo = interface.ERC20('0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32')
-    #inch = interface.ERC20('0x111111111117dC0aa78b770fA6A738034120C302')
-    #etha = '0x0000000000000000000000000000000000000000' 
-    #path = [steth, etha, inch]
-    #ss.trade(moon, path, {'from': samdev})
-    #path = [ldo, etha, inch]
-    #ss.trade(moon, path, {'from': samdev})
-    
-    
-    #moons = [moon]
-    #ss.claim(moons, {'from': samdev})
-
-    #mooni = Contract.from_explorer('0x1f629794B34FFb3B29FF206Be5478A52678b47ae')
+    weth = currency
+    vault.addStrategy(strategy, debt_ratio, 0,rate_limit, 1000, {"from": gov})
 
     currency.approve(vault, 2 ** 256 - 1, {"from": whale} )
-    #ldo.approve(mooni, 2 ** 256 - 1, {"from": whale} )
-    
-    #mooni.swap(ldo, '0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84', 1000*1e18, 1, whale, {"from": whale})
-
     whalebefore = currency.balanceOf(whale)
     whale_deposit  = 100 *1e18
     vault.deposit(whale_deposit, {"from": whale})
     strategy.harvest({'from': strategist})
-
+    assert weth.balanceOf(strategy) == 0
+    assert steth.balanceOf(strategy) >= whale_deposit
 
     #genericStateOfStrat(strategy, currency, vault)
     #genericStateOfVault(vault, currency)
 
-    chain.sleep(2592000)
+    days = 14
+    chain.sleep(days*24*60*60)
     chain.mine(1)
 
+    #send some steth to simulate profit. 10% apr
+    rewards_amount = whale_deposit/10/365*days
+    steth.transfer(strategy, rewards_amount, {'from': steth_holder})
+
+    #genericStateOfStrat(strategy, currency, vault)
+    #genericStateOfVault(vault, currency)
+
+
     strategy.harvest({'from': strategist})
-    #strategy.harvest({'from': strategist})
 
+    assert steth.balanceOf(strategy) >= whale_deposit #only profit sent
+    assert weth.balanceOf(vault) >= rewards_amount * 0.995 # 0.5% max slippage
+    assert strategy.balance() == 0
 
+    vault.updateStrategyDebtRatio(strategy, 0, {'from': gov})
 
-    stethbal = steth.balanceOf(strategy)
-    ethbal = strategy.balance()
-    wantBal = currency.balanceOf(strategy)
-    print("steth = ", stethbal/1e18)
-    print("eth = ", ethbal/1e18)
-    print("want = ", wantBal/1e18)
-    assert stethbal <= 1
-    assert ethbal <= 1
-    assert ldo.balanceOf(strategy) == 0
+    #revert because we have loss
+    with brownie.reverts("!healthcheck"):
+        strategy.harvest({'from': strategist})
+    strategy.setDoHealthCheck(False, {'from': gov})
+    strategy.harvest({'from': strategist})
 
+    assert steth.balanceOf(strategy) <= 1 #no balance left
+    assert weth.balanceOf(vault) >= (rewards_amount + whale_deposit) * 0.995 # 0.5% max slippage
+    assert strategy.balance() == 0
 
+    #genericStateOfStrat(strategy, currency, vault)
+    #genericStateOfVault(vault, currency)
 
-    genericStateOfStrat(strategy, currency, vault)
-    genericStateOfVault(vault, currency)
-
-    #print(mooni.balanceOf(strategist))
-
-    print("\nEstimated APR: ", "{:.2%}".format(((vault.totalAssets()-100*1e18)*12)/(100*1e18)))
-
+    
     vault.withdraw({"from": whale})
-    vault.withdraw({"from": rewards})
-    vault.withdraw({"from": strategist})
-    print("\nWithdraw")
-    genericStateOfStrat(strategy, currency, vault)
-    genericStateOfVault(vault, currency)
-    print("Whale profit: ", (currency.balanceOf(whale) - whalebefore)/1e18)
+    whale_profit = (currency.balanceOf(whale) - whalebefore)/1e18
+    print("Whale profit: ", whale_profit)
+    assert whale_profit > 0
 
-def test_zapper(currency,strategy,zapper, chain,vault, whale,gov,strategist, interface):
-    rate_limit = 1_000_000_000 *1e18
+
+def test_migrate(currency,strategy,Strategy, Contract, chain,vault, steth, whale,gov,strategist, steth_holder, interface):
+    rate_limit = 2**256 -1
     debt_ratio = 10_000
-
-    zapper.updateVaultAddress(vault)
-    vault.addStrategy(strategy, debt_ratio, rate_limit, 1000, {"from": gov})
-
-    gov.transfer(zapper, 5*1e18)
-    before = vault.balanceOf(gov)
-    print(before/1e18)
-    assert vault.balanceOf(gov) >0
-
-    zapper.zapEthIn(50, {"from": gov, "value": 5*1e18})
-
-    print(vault.balanceOf(gov)/1e18)
-    assert vault.balanceOf(gov) >before
-    strategy.harvest({'from': strategist})
-
-    chain.sleep(2592000)
-    chain.mine(1)
-    strategy.harvest({'from': strategist})
-    genericStateOfStrat(strategy, currency, vault)
-    genericStateOfVault(vault, currency)
-
-    bBefore = gov.balance()
-    vault.approve(zapper, 2 ** 256 - 1, {"from": gov} )
-    zapper.zapEthOut(vault.balanceOf(gov), 500, {"from": gov})
-    print(gov.balance()/1e18 - bBefore/1e18)
-
-
-    #zapper.zapStEthOut(vault.balanceOf(gov), 50, {"from": gov})
-
-    assert vault.balanceOf(gov) == 0
-
-
-
-
-def test_migrate(currency,Strategy, strategy, chain,vault, whale,gov,strategist, interface):
-    rate_limit = 1_000_000_000 *1e18
-    debt_ratio = 10_000
-    vault.addStrategy(strategy, debt_ratio, rate_limit, 1000, {"from": gov})
+    weth = currency
+    vault.addStrategy(strategy, debt_ratio, 0,rate_limit, 1000, {"from": gov})
 
     currency.approve(vault, 2 ** 256 - 1, {"from": whale} )
     whale_deposit  = 100 *1e18
     vault.deposit(whale_deposit, {"from": whale})
     strategy.harvest({'from': strategist})
-
-    genericStateOfStrat(strategy, currency, vault)
-    genericStateOfVault(vault, currency)
-    lg = interface.ERC20('0x182B723a58739a9c974cFDB385ceaDb237453c28')
+    before_steth = steth.balanceOf(strategy)
+    assert before_steth >= whale_deposit
 
     strategy2 = strategist.deploy(Strategy, vault)
-
-    beforeS = currency.balanceOf(strategy)
-    beforeLG = lg.balanceOf(strategy)
-
     vault.migrateStrategy(strategy, strategy2, {'from': gov})
 
-    assert currency.balanceOf(strategy2) == beforeS
-    assert lg.balanceOf(strategy2) == beforeLG
-    genericStateOfStrat(strategy, currency, vault)
-    genericStateOfStrat(strategy2, currency, vault)
-    genericStateOfVault(vault, currency)
-
-    strategy = strategy2
-
-    chain.sleep(2592000)
-    chain.mine(1)
-
-    strategy.harvest({'from': strategist})
-
-    genericStateOfStrat(strategy, currency, vault)
-    genericStateOfVault(vault, currency)
-    assert vault.totalAssets() > whale_deposit
-
-    print("\nEstimated APR: ", "{:.2%}".format(((vault.totalAssets()-100*1e18)*12)/(100*1e18)))
+    #we can be left with some dust due to roudning errors in steth converting shares
+    assert steth.balanceOf(strategy2) >= before_steth-1 and steth.balanceOf(strategy2) <= before_steth + 1
+    assert strategy.estimatedTotalAssets() <= 1
 
 
 
 
-def test_reduce_limit(currency,Strategy, strategy, chain,vault, whale,gov,strategist, interface):
+def test_massive_deposit(currency,Strategy, steth,strategy, chain,vault, whale,gov,strategist, interface):
     rate_limit = 1_000_000_000 *1e18
     debt_ratio = 10_000
-    vault.addStrategy(strategy, debt_ratio, rate_limit, 1000, {"from": gov})
+    vault.addStrategy(strategy, debt_ratio, 0, rate_limit, 1000, {"from": gov})
+    strategy.updateMaxSingleTrade(500_000*1e18, {"from": gov})
 
     currency.approve(vault, 2 ** 256 - 1, {"from": whale} )
-    whale_deposit  = 100 *1e18
+    whale_deposit  = 100_000 *1e18
     vault.deposit(whale_deposit, {"from": whale})
-    strategy.harvest({'from': strategist})
+    eth_staker_balance = steth.balance()
+    tx = strategy.harvest({'from': strategist})
 
-    genericStateOfStrat(strategy, currency, vault)
-    genericStateOfVault(vault, currency)
+    #make sure we take the staking route
+    assert (steth.balance() - eth_staker_balance) == whale_deposit
+    #assert len(tx.events['Submitted'] == 1)
 
-    vault.revokeStrategy(strategy, {'from': gov})
+    #genericStateOfStrat(strategy, currency, vault)
+    #genericStateOfVault(vault, currency)
 
-    strategy.harvest({'from': strategist})
+    assert currency.balanceOf(strategy) == 0
+    assert steth.balanceOf(strategy)/1e18 >= (whale_deposit-1)/1e18
 
-    genericStateOfStrat(strategy, currency, vault)
-    genericStateOfVault(vault, currency)
+    
 
    
