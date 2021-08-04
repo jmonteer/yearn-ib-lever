@@ -30,9 +30,9 @@ contract Strategy is BaseStrategy {
 
     bool public checkLiqGauge = true;
 
-    ICurveFi public constant StableSwapSTETH =  ICurveFi(address(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022));
-    IWETH public constant weth = IWETH(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
-    ISteth public constant stETH =  ISteth(address(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84));
+    ICurveFi public constant StableSwapSTETH =  ICurveFi(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022);
+    IWETH public constant weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    ISteth public constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
     
     address private referal = 0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7; //stratms. for recycling and redepositing
     uint256 public maxSingleTrade;
