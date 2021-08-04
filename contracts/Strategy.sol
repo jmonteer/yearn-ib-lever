@@ -144,6 +144,7 @@ contract Strategy is BaseStrategy {
     }
     function liquidateAllPositions() internal override returns (uint256 _amountFreed){
         _divest(stethBalance());
+        _amountFreed = wantBalance();
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {

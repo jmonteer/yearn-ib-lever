@@ -68,6 +68,29 @@ def test_profitable_harvest(currency,strategy,Contract, chain,vault, steth, whal
     print("Whale profit: ", whale_profit)
     assert whale_profit > 0
 
+def test_emergency_exit(currency,strategy,Contract, chain,vault, steth, whale,gov,strategist, steth_holder, interface):
+    rate_limit = 2**256 -1
+    debt_ratio = 10_000
+    weth = currency
+    vault.addStrategy(strategy, debt_ratio, 0,rate_limit, 1000, {"from": gov})
+
+    currency.approve(vault, 2 ** 256 - 1, {"from": whale} )
+    whalebefore = currency.balanceOf(whale)
+    whale_deposit  = 100 *1e18
+    vault.deposit(whale_deposit, {"from": whale})
+    strategy.harvest({'from': strategist})
+    assert weth.balanceOf(strategy) == 0
+    assert steth.balanceOf(strategy) >= whale_deposit
+    strategy.setDoHealthCheck(False, {'from': gov})
+    strategy.setEmergencyExit({'from': gov})
+
+    strategy.harvest({'from': strategist})
+
+
+    assert steth.balanceOf(strategy) <= 1
+    assert strategy.estimatedTotalAssets() <= 1
+    assert weth.balanceOf(vault) >= whale_deposit * 0.99 # 0.5% max slippage in both directions
+
 
 def test_migrate(currency,strategy,Strategy, Contract, chain,vault, steth, whale,gov,strategist, steth_holder, interface):
     rate_limit = 2**256 -1
@@ -169,3 +192,21 @@ def test_multiple_step_withdrawal(currency,strategy,Contract, chain,vault, steth
     assert weth.balanceOf(vault) >= single_trade *3 * 0.995
     genericStateOfStrat(strategy, currency, vault)
     genericStateOfVault(vault, currency)
+
+def test_updates(currency,strategy,Contract, chain,vault, steth, whale,gov,strategist, steth_holder, interface):
+    
+    with brownie.reverts():
+        strategy.updateReferal(whale, {'from': whale})
+
+    with brownie.reverts():
+        strategy.updateMaxSingleTrade(1, {'from': whale})
+    
+    with brownie.reverts():
+        strategy.updateSlippageProtectionOut(1, {'from': whale})
+
+    with brownie.reverts():
+        strategy.setKeeper(whale, {'from': whale})
+
+    strategy.updateSlippageProtectionOut(1, {'from': gov})
+    strategy.updateMaxSingleTrade(1, {'from': gov})
+    strategy.updateReferal(whale, {'from': gov})
