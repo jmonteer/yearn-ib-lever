@@ -148,7 +148,7 @@ contract Strategy is BaseStrategy {
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
 
-        uint256 toInvest = wantBalance());
+        uint256 toInvest = wantBalance();
         if(toInvest > 0){
             uint256 realInvest = Math.min(maxSingleTrade, toInvest);
             _invest(realInvest);
