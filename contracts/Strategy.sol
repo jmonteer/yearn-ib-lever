@@ -48,7 +48,7 @@ contract Strategy is BaseStrategy {
 
         stETH.approve(address(StableSwapSTETH), uint256(-1));
         
-        maxSingleTrade = 1_000_000 * 1e18;
+        maxSingleTrade = 1_000 * 1e18;
         slippageProtectionOut = 50;
     }
 

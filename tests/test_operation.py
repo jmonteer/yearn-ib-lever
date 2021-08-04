@@ -114,6 +114,28 @@ def test_massive_deposit(currency,Strategy, steth,strategy, chain,vault, whale,g
     assert currency.balanceOf(strategy) == 0
     assert steth.balanceOf(strategy)/1e18 >= (whale_deposit-1)/1e18
 
-    
 
-   
+def test_multiple_step_deposit(currency,strategy,Contract, chain,vault, steth, whale,gov,strategist, steth_holder, interface):
+    rate_limit = 2**256 -1
+    debt_ratio = 10_000
+    weth = currency
+    vault.addStrategy(strategy, debt_ratio, 0,rate_limit, 1000, {"from": gov})
+
+    currency.approve(vault, 2 ** 256 - 1, {"from": whale} )
+    whalebefore = currency.balanceOf(whale)
+    whale_deposit  = 3_000 *1e18
+    max =  strategy.maxSingleTrade() 
+    assert max/1e18 == 1_000
+
+    vault.deposit(whale_deposit, {"from": whale})
+    strategy.harvest({'from': strategist})
+    assert weth.balanceOf(strategy) == whale_deposit - max
+    assert steth.balanceOf(strategy) >= max
+
+    strategy.invest(weth.balanceOf(strategy) , {'from': strategist})
+
+    assert weth.balanceOf(strategy) == whale_deposit - (max*2)
+    assert steth.balanceOf(strategy) >= max*2
+    strategy.harvest({'from': strategist})
+    assert weth.balanceOf(strategy) == 0
+    
