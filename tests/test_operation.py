@@ -139,3 +139,33 @@ def test_multiple_step_deposit(currency,strategy,Contract, chain,vault, steth, w
     strategy.harvest({'from': strategist})
     assert weth.balanceOf(strategy) == 0
     
+def test_multiple_step_withdrawal(currency,strategy,Contract, chain,vault, steth, whale,gov,strategist, steth_holder, interface):
+    rate_limit = 2**256 -1
+    debt_ratio = 10_000
+    weth = currency
+    vault.addStrategy(strategy, debt_ratio, 0,rate_limit, 1000, {"from": gov})
+    strategy.updateMaxSingleTrade(500_000*1e18, {"from": gov})
+
+    currency.approve(vault, 2 ** 256 - 1, {"from": whale} )
+    whalebefore = currency.balanceOf(whale)
+    whale_deposit  = 3_000 *1e18
+
+    vault.deposit(whale_deposit, {"from": whale})
+    strategy.harvest({'from': strategist})
+    assert weth.balanceOf(strategy) == 0
+
+    single_trade = 1_000*1e18
+    strategy.updateMaxSingleTrade(single_trade, {"from": gov})
+    vault.updateStrategyDebtRatio(strategy, 0, {'from': gov})
+    strategy.setDoHealthCheck(False, {'from': gov})
+    strategy.harvest({'from': strategist})
+    assert strategy.estimatedTotalAssets() >= whale_deposit - single_trade
+    assert weth.balanceOf(vault) >= single_trade * 0.995
+    strategy.setDoHealthCheck(False, {'from': gov})
+    strategy.harvest({'from': strategist})
+    strategy.setDoHealthCheck(False, {'from': gov})
+    strategy.harvest({'from': strategist})
+    assert strategy.estimatedTotalAssets() < single_trade
+    assert weth.balanceOf(vault) >= single_trade *3 * 0.995
+    genericStateOfStrat(strategy, currency, vault)
+    genericStateOfVault(vault, currency)
