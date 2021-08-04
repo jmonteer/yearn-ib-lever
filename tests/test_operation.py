@@ -68,6 +68,33 @@ def test_profitable_harvest(currency,strategy,Contract, chain,vault, steth, whal
     print("Whale profit: ", whale_profit)
     assert whale_profit > 0
 
+def test_deep_withdrawal(currency,strategy,Contract, chain,vault, nocoiner, steth, whale,gov,strategist, steth_holder, interface):
+    rate_limit = 2**256 -1
+    debt_ratio = 10_000
+    weth = currency
+    vault.addStrategy(strategy, debt_ratio, 0,rate_limit, 1000, {"from": gov})
+    gov.transfer(strategy, 1*1e14)
+    
+    with brownie.reverts():
+        strategy.rescueStuckEth({"from": nocoiner})
+
+    strategy.rescueStuckEth({"from": gov})
+
+    currency.approve(vault, 2 ** 256 - 1, {"from": whale} )
+    whalebefore = currency.balanceOf(whale)
+    whale_deposit  = 100 *1e18
+    vault.deposit(whale_deposit, {"from": whale})
+    strategy.harvest({'from': strategist})
+
+    with brownie.reverts():
+        vault.withdraw({"from": whale})
+    
+    vault.withdraw(vault.balanceOf(whale),whale, 500, {"from": whale})
+    
+    whale_profit = (currency.balanceOf(whale) - whalebefore)/1e18
+    print("Whale profit: ", whale_profit)
+    assert whale_profit > -1 * whale_deposit * 0.01
+
 def test_emergency_exit(currency,strategy,Contract, chain,vault, steth, whale,gov,strategist, steth_holder, interface):
     rate_limit = 2**256 -1
     debt_ratio = 10_000
