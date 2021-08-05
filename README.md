@@ -1,1 +1,1 @@
-# Steth Accumulator Strategy
+# Lever Strategy
